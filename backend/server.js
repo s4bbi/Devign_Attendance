@@ -1,162 +1,226 @@
-// server.js
+// backend/server.js
 import express from "express";
 import cors from "cors";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+import mongoose from "mongoose";
+import dotenv from "dotenv";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const MONGODB_URI = process.env.MONGODB_URI;
 
+// ---------- MONGODB CONNECTION ----------
+if (!MONGODB_URI) {
+  console.error("❌ MONGODB_URI not set in .env");
+  process.exit(1);
+}
+
+mongoose
+  .connect(MONGODB_URI, {
+    dbName: "devign-attendance", // or your custom db name
+  })
+  .then(() => console.log("✅ Connected to MongoDB"))
+  .catch((err) => {
+    console.error("❌ MongoDB connection error:", err);
+    process.exit(1);
+  });
+
+// ---------- MIDDLEWARE ----------
 app.use(cors());
 app.use(express.json());
 
-// ---- Simple JSON storage helpers ----
-const dataDir = path.join(__dirname, "data");
-const meetingFile = path.join(dataDir, "meeting.json");
-const attendanceFile = path.join(dataDir, "attendance.json");
+// ---------- MONGOOSE SCHEMAS & MODELS ----------
 
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
+// One document that holds current meeting info
+const meetingSchema = new mongoose.Schema(
+  {
+    meetingDate: { type: String, required: true }, // YYYY-MM-DD
+    agenda: { type: String, required: true },
+  },
+  { timestamps: true }
+);
 
-function loadJson(filePath, fallback) {
-  try {
-    if (!fs.existsSync(filePath)) return fallback;
-    const raw = fs.readFileSync(filePath, "utf-8");
-    return JSON.parse(raw);
-  } catch (err) {
-    console.error(`Error reading ${filePath}:`, err);
-    return fallback;
-  }
-}
+const Meeting = mongoose.model("Meeting", meetingSchema);
 
-function saveJson(filePath, data) {
-  try {
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
-  } catch (err) {
-    console.error(`Error writing ${filePath}:`, err);
-  }
-}
+// Each attendance mark is one document
+const attendanceSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    branch: { type: String, required: true },
+    year: { type: String, required: true },
+    meetingDate: { type: String, required: true }, // YYYY-MM-DD
+    agenda: { type: String, required: true },
+    timestamp: { type: Date, default: Date.now },
+  },
+  { timestamps: true }
+);
 
-// --- Meeting state (admin-controlled) ---
-const todayISO = new Date().toISOString().slice(0, 10);
+const Attendance = mongoose.model("Attendance", attendanceSchema);
 
-let currentMeeting = loadJson(meetingFile, null) || {
-  meetingDate: todayISO,
-  agenda: "Devign Club Meeting",
+// Helper to map Mongo _id → id for frontend
+const mapAttendanceDoc = (doc) => {
+  const obj = doc.toObject ? doc.toObject() : doc;
+  const { _id, __v, ...rest } = obj;
+  return { id: _id.toString(), ...rest };
 };
 
-// --- Attendance store ---
-let attendanceRecords = loadJson(attendanceFile, []);
+// ---------- ROUTES ----------
 
 /**
  * GET /api/meeting
- * Returns the current meeting date & agenda
+ * Returns current meeting. If none exists, create a default one for today.
  */
-app.get("/api/meeting", (req, res) => {
-  return res.json(currentMeeting);
+app.get("/api/meeting", async (req, res) => {
+  try {
+    let meeting = await Meeting.findOne().sort({ updatedAt: -1 });
+
+    if (!meeting) {
+      const todayISO = new Date().toISOString().slice(0, 10);
+      meeting = await Meeting.create({
+        meetingDate: todayISO,
+        agenda: "Devign Club Meeting",
+      });
+    }
+
+    res.json({
+      meetingDate: meeting.meetingDate,
+      agenda: meeting.agenda,
+    });
+  } catch (err) {
+    console.error("GET /api/meeting error:", err);
+    res.status(500).json({ message: "Failed to fetch meeting." });
+  }
 });
 
 /**
  * PUT /api/meeting
  * Body: { meetingDate: string (YYYY-MM-DD), agenda: string }
  */
-app.put("/api/meeting", (req, res) => {
-  const { meetingDate, agenda } = req.body;
+app.put("/api/meeting", async (req, res) => {
+  try {
+    const { meetingDate, agenda } = req.body;
 
-  if (!meetingDate || !agenda) {
-    return res
-      .status(400)
-      .json({ message: "Meeting date and agenda are required." });
+    if (!meetingDate || !agenda) {
+      return res
+        .status(400)
+        .json({ message: "Meeting date and agenda are required." });
+    }
+
+    // Upsert: either update the latest doc or create a new one
+    let meeting = await Meeting.findOne().sort({ updatedAt: -1 });
+
+    if (!meeting) {
+      meeting = await Meeting.create({ meetingDate, agenda });
+    } else {
+      meeting.meetingDate = meetingDate;
+      meeting.agenda = agenda;
+      await meeting.save();
+    }
+
+    console.log("Updated meeting:", meeting);
+    res.json({
+      meetingDate: meeting.meetingDate,
+      agenda: meeting.agenda,
+    });
+  } catch (err) {
+    console.error("PUT /api/meeting error:", err);
+    res.status(500).json({ message: "Failed to update meeting." });
   }
-
-  currentMeeting = {
-    meetingDate,
-    agenda,
-  };
-
-  saveJson(meetingFile, currentMeeting);
-  console.log("Updated meeting:", currentMeeting);
-  return res.json(currentMeeting);
 });
 
 /**
  * POST /api/attendance
  * Body: { name, branch, year, meetingDate?, agenda? }
  */
-app.post("/api/attendance", (req, res) => {
-  const { name, branch, year, meetingDate, agenda } = req.body;
+app.post("/api/attendance", async (req, res) => {
+  try {
+    const { name, branch, year, meetingDate, agenda } = req.body;
 
-  if (!name || !branch || !year) {
-    return res
-      .status(400)
-      .json({ message: "Name, branch, and year are required." });
+    if (!name || !branch || !year) {
+      return res
+        .status(400)
+        .json({ message: "Name, branch, and year are required." });
+    }
+
+    // Use provided meetingDate/agenda OR fall back to current meeting
+    let dateToUse = meetingDate;
+    let agendaToUse = agenda;
+
+    if (!dateToUse || !agendaToUse) {
+      const current = await Meeting.findOne().sort({ updatedAt: -1 });
+      if (!current) {
+        return res
+          .status(400)
+          .json({ message: "No current meeting configured." });
+      }
+      if (!dateToUse) dateToUse = current.meetingDate;
+      if (!agendaToUse) agendaToUse = current.agenda;
+    }
+
+    const record = await Attendance.create({
+      name,
+      branch,
+      year,
+      meetingDate: dateToUse,
+      agenda: agendaToUse,
+    });
+
+    res.status(201).json(mapAttendanceDoc(record));
+  } catch (err) {
+    console.error("POST /api/attendance error:", err);
+    res.status(500).json({ message: "Failed to mark attendance." });
   }
-
-  const dateToUse = meetingDate || currentMeeting.meetingDate;
-  const agendaToUse = agenda || currentMeeting.agenda;
-
-  const record = {
-    id: Date.now().toString(), // ensure string ID
-    name,
-    branch,
-    year,
-    meetingDate: dateToUse,
-    agenda: agendaToUse,
-    timestamp: new Date().toISOString(),
-  };
-
-  attendanceRecords.push(record);
-  saveJson(attendanceFile, attendanceRecords);
-
-  return res.status(201).json(record);
 });
 
 /**
  * GET /api/attendance?meetingDate=YYYY-MM-DD
  */
-app.get("/api/attendance", (req, res) => {
-  const { meetingDate } = req.query;
-  const dateToFilter = meetingDate || currentMeeting.meetingDate;
+app.get("/api/attendance", async (req, res) => {
+  try {
+    const { meetingDate } = req.query;
 
-  const filtered = attendanceRecords.filter(
-    (r) => r.meetingDate === dateToFilter
-  );
-  return res.json(filtered);
+    let dateToFilter = meetingDate;
+    if (!dateToFilter) {
+      const current = await Meeting.findOne().sort({ updatedAt: -1 });
+      if (!current) {
+        return res.json([]);
+      }
+      dateToFilter = current.meetingDate;
+    }
+
+    const records = await Attendance.find({ meetingDate: dateToFilter })
+      .sort({ timestamp: -1 })
+      .exec();
+
+    res.json(records.map(mapAttendanceDoc));
+  } catch (err) {
+    console.error("GET /api/attendance error:", err);
+    res.status(500).json({ message: "Failed to fetch attendance." });
+  }
 });
 
 /**
  * DELETE /api/attendance/:id
  */
-app.delete("/api/attendance/:id", (req, res) => {
-  const { id } = req.params;
+app.delete("/api/attendance/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
 
-  console.log("DELETE request for ID:", id);
-  console.log(
-    "Current IDs in store:",
-    attendanceRecords.map((r) => r.id)
-  );
+    const deleted = await Attendance.findByIdAndDelete(id);
+    if (!deleted) {
+      return res.status(404).json({ message: "Attendance record not found." });
+    }
 
-  const index = attendanceRecords.findIndex((r) => String(r.id) === String(id));
-
-  if (index === -1) {
-    console.log("Not found → cannot delete");
-    return res.status(404).json({ message: "Attendance record not found." });
+    console.log("Deleted attendance:", deleted);
+    res.json({ message: "Deleted successfully.", record: mapAttendanceDoc(deleted) });
+  } catch (err) {
+    console.error("DELETE /api/attendance error:", err);
+    res.status(500).json({ message: "Failed to delete attendance." });
   }
-
-  const [deleted] = attendanceRecords.splice(index, 1);
-  console.log("Deleted attendance:", deleted);
-
-  // persist updated list
-  saveJson(attendanceFile, attendanceRecords);
-
-  return res.json({ message: "Deleted successfully.", record: deleted });
 });
 
+// ---------- START SERVER ----------
 app.listen(PORT, () => {
   console.log(`Devign Attendance API running on http://localhost:${PORT}`);
 });

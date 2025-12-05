@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import BackgroundParticles from "./BackgroundParticles";
 
-const API_BASE = "http://localhost:5000";
+const API_BASE = "https://devign-attendance-api.vercel.app/";
 const todayISO = new Date().toISOString().slice(0, 10);
 
 const branches = ["CSE", "CSE (AI)", "ECE", "EE", "ME", "CE", "Other"];

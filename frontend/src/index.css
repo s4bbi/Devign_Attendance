@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    "SF Pro Display", system-ui, sans-serif;
+  /* Background gradient lives here now */
+  background: radial-gradient(circle at top left, #e5f0ff 0, #f5f7fb 40%, #e5edf5 100%);
+  color: #020617;
+}
+
+/* You can keep Tailwind utilities via a separate class if you want */
+.app-root {
+  @apply min-h-screen text-slate-900 antialiased;
+}
+
+.custom-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.6);
+}

@@ -9,7 +9,12 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
     "SF Pro Display", system-ui, sans-serif;
   /* Background gradient lives here now */
-  background: radial-gradient(circle at top left, #e5f0ff 0, #f5f7fb 40%, #e5edf5 100%);
+  background: radial-gradient(
+    circle at top left,
+    #e5f0ff 0,
+    #f5f7fb 40%,
+    #e5edf5 100%
+  );
   color: #020617;
 }
 

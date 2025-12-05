@@ -1,9 +1,9 @@
-// App.jsx
 import { useEffect, useState } from "react";
 import BackgroundParticles from "./BackgroundParticles";
-import Loader from "./Loader";
+import Logo from "./Logo";
+import LoaderOverlay from "./LoaderOverlay";
 
-const API_BASE = "https://devign-attendance-api.vercel.app"; // change to your deployed URL
+const API_BASE = "http://localhost:5000"; // change to your deployed API
 const todayISO = new Date().toISOString().slice(0, 10);
 
 const branches = ["CSE", "CSE (AI)", "ECE", "EE", "ME", "CE", "Other"];
@@ -13,12 +13,15 @@ const years = ["1st", "2nd", "3rd", "4th"];
 const ADMIN_PIN = "1104";
 
 export default function App() {
+  // Loader state
+  const [loading, setLoading] = useState(true);
+
   const [meetingDate, setMeetingDate] = useState(todayISO);
   const [agenda, setAgenda] = useState("Devign Club Meeting");
   const [name, setName] = useState("");
   const [branch, setBranch] = useState("");
   const [year, setYear] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loadingSubmit, setLoadingSubmit] = useState(false);
   const [attendees, setAttendees] = useState([]);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -33,6 +36,12 @@ export default function App() {
 
   // Delete error (for admin delete)
   const [deleteError, setDeleteError] = useState("");
+
+  // --- Loader timing: logo shows in center, then moves to top ---
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 2000); // 2s loader
+    return () => clearTimeout(timer);
+  }, []);
 
   // Fetch current meeting info on mount
   useEffect(() => {
@@ -148,7 +157,7 @@ export default function App() {
       return;
     }
 
-    setLoading(true);
+    setLoadingSubmit(true);
     try {
       const res = await fetch(`${API_BASE}/api/attendance`, {
         method: "POST",
@@ -176,11 +185,11 @@ export default function App() {
     } catch (err) {
       setError(err.message);
     } finally {
-      setLoading(false);
+      setLoadingSubmit(false);
     }
   };
 
-  // --- delete attendance (admin only) ---
+  // --- Delete attendance (admin only) ---
   const handleDeleteAttendance = async (id) => {
     if (!isAdmin) return;
     setDeleteError("");
@@ -193,16 +202,15 @@ export default function App() {
       let msg = {};
       try {
         msg = await res.json();
-      } catch {
-        // ignore JSON parse error
+      } catch (e) {
+        console.log("DELETE: failed to parse JSON");
       }
 
       if (!res.ok) {
         throw new Error(msg.message || "Failed to delete attendance");
       }
 
-      // Remove from UI
-      setAttendees((prev) => prev.filter((a) => String(a.id) !== String(id)));
+      setAttendees((prev) => prev.filter((a) => a.id !== id));
       setAdminMessage("Attendance removed.");
       setTimeout(() => setAdminMessage(""), 2000);
     } catch (err) {
@@ -214,24 +222,21 @@ export default function App() {
   const meetingFieldDisabled = !isAdmin;
 
   return (
-    <>
-      <Loader />
-      <div
-        className="app-root relative flex items-center justify-center px-3 py-6 sm:px-4 sm:py-10"
-        style={{
-          background:
-            "radial-gradient(circle at 30% 20%, rgba(59,130,246,0.12) 0%, transparent 50%)," +
-            "radial-gradient(circle at 70% 80%, rgba(37,99,235,0.08) 0%, transparent 50%)," +
-            "linear-gradient(135deg, #f8fbff 0%, #f0f4ff 100%)",
-          minHeight: "100vh",
-        }}
-      >
-        {/* 3D particle background behind everything */}
-        {/* <BackgroundParticles /> */}
+    <div className="relative min-h-screen bg-slate-100">
+      {/* Optional particles in the background */}
+      {/* <BackgroundParticles /> */}
 
+      {/* Shared logo that starts centered and moves to top after loading */}
+      <Logo animateToTop={!loading} />
+
+      {/* Fullscreen overlay with subtle spinner while logo is in center */}
+      <LoaderOverlay active={loading} />
+
+      {/* Main content, padded down so it doesn't collide with logo */}
+      <div className="app-root relative flex items-center justify-center px-3 py-6 sm:px-4 sm:py-10 pt-32">
         {/* PIN Modal */}
         {showPinModal && (
-          <div className="fixed inset-0 z-20 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm px-4">
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm px-4">
             <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-200 p-5 sm:p-6">
               <div className="flex items-center justify-between mb-4">
                 <div>
@@ -490,10 +495,10 @@ export default function App() {
 
                     <button
                       type="submit"
-                      disabled={loading}
+                      disabled={loadingSubmit}
                       className="sm:ml-auto inline-flex items-center justify-center gap-2 rounded-full px-5 py-2 text-sm font-medium bg-slate-900 text-white shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-95 transition disabled:opacity-60 disabled:cursor-not-allowed w-full sm:w-auto"
                     >
-                      {loading ? "Marking..." : "Mark Present"}
+                      {loadingSubmit ? "Marking..." : "Mark Present"}
                       <span className="text-base">⌁</span>
                     </button>
                   </div>
@@ -592,6 +597,6 @@ export default function App() {
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

@@ -1,0 +1,103 @@
+/* Fullscreen wrapper */
+.loader-wrapper {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999999;
+  background: #fafbff;
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 1s ease, visibility 1s ease;
+}
+
+/* Subtle blue radial background */
+.loader-background {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 30% 20%, rgba(59, 130, 246, 0.12) 0%, transparent 50%),
+    radial-gradient(circle at 70% 80%, rgba(37, 99, 235, 0.08) 0%, transparent 50%),
+    linear-gradient(135deg, #f8fbff 0%, #f0f4ff 100%);
+  pointer-events: none;
+}
+
+/* Glassmorphism card with blue border */
+.loader-card {
+  position: relative;
+  width: 220px;
+  max-width: 80vw;
+  padding: 20px 18px 18px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  box-shadow:
+    0 25px 50px rgba(0, 0, 0, 0.12),
+    0 0 0 1px rgba(59, 130, 246, 0.15) inset,
+    0 4px 20px rgba(37, 99, 235, 0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Spinner container */
+.loader-spinner {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px; /* reduced gap */
+  position: relative;
+}
+
+/* Outer ring - subtle blue */
+.loader-spinner::before {
+  content: "";
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 2px solid rgba(59, 130, 246, 0.2);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.1);
+}
+
+/* Inner spinning arc - blue gradient */
+.loader-spinner-inner {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  border-top-color: #3b82f6;
+  border-right-color: rgba(59, 130, 246, 0.4);
+  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+  mask: radial-gradient(farthest-side, transparent calc(50% - 1px), black 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(50% - 1px), black 0);
+  animation: loader-spin 1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Logo under spinner, tight spacing */
+.loader-logo {
+  margin-top: 2px;
+  max-width: 120px;
+  height: auto;
+  display: block;
+}
+
+/* Fade-out on complete */
+.loader-wrapper.fade-out {
+  opacity: 0;
+  visibility: hidden;
+}
+
+/* Spinner keyframes - smoother easing */
+@keyframes loader-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

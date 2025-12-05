@@ -1,3 +1,4 @@
+// server.js
 import express from "express";
 import cors from "cors";
 import fs from "fs";
@@ -8,7 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
@@ -150,7 +151,7 @@ app.delete("/api/attendance/:id", (req, res) => {
   const [deleted] = attendanceRecords.splice(index, 1);
   console.log("Deleted attendance:", deleted);
 
-  // IMPORTANT: persist updated list
+  // persist updated list
   saveJson(attendanceFile, attendanceRecords);
 
   return res.json({ message: "Deleted successfully.", record: deleted });
